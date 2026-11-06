@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="ne">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin Panel</title>
+<style>
+body{font-family:Arial;background:#f2f2f2;padding:20px}
+.box{max-width:650px;margin:auto;background:white;padding:20px;border-radius:10px}
+input,button,select{width:100%;padding:14px;margin:8px 0;box-sizing:border-box}
+button{background:green;color:white;border:0;font-size:16px;cursor:pointer}
+.item{border:1px solid #ccc;padding:12px;margin:12px 0;border-radius:8px}
+.status{font-weight:bold;padding:8px;background:#eee;border-radius:5px}
+</style>
+</head>
+<body>
+<div class="box">
+<h2>Admin Panel</h2>
+<h3>Hamro Click & Collect</h3>
+
+<h3>Add New Stuff</h3>
+<input id="name" placeholder="Item name">
+<input id="price" type="number" placeholder="Price (Rs.)">
+<input id="photo" placeholder="Photo link">
+<input id="seller_phone" type="tel" placeholder="Shopkeeper Mobile Number">
+<button id="addButton">Add Stuff</button>
+<p id="message"></p>
+
+<h3>Added Items</h3>
+<div id="products"></div>
+<hr>
+
+<h3>Customer Orders</h3>
+<button id="orderButton">View Orders</button>
+<div id="orders"></div>
+</div>
+
+<script>
+document.getElementById("addButton").addEventListener("click", addProduct);
+document.getElementById("orderButton").addEventListener("click", loadOrders);
+
+async function addProduct() {
+ 
+  const name = document.getElementById("name").value.trim();
+  const price = document.getElementById("price").value;
+  const photo = document.getElementById("photo").value.trim();
+  const seller_phone = document.getElementById("seller_phone").value.trim();
+  const message = document.getElementById("message");
+
+  if (!name || !price || Number(price) <= 0) {
+    message.textContent = "Name ra price lekhnuhos.";
+    return;
+  }
+
+  try {
+    const response = await fetch("/api/products", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        name: name,
+        price: price,
+        photo: photo,
+        seller_phone: seller_phone
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error("Product add failed");
+    }
+
+    message.textContent = "Saman add bhayo!";
+
+    document.getElementById("name").value = "";
+    document.getElementById("price").value = "";
+    document.getElementById("photo").value = "";
+    document.getElementById("seller_phone").value = "";
+
+    loadProducts();
+
+  } catch (error) {
+    message.textContent = "Saman add bhayena: " + error.message;
+  }
+}
+async function loadProducts() {
+  try {
+    const response = await fetch("/api/products");
+    const products = await response.json();
+    const area = document.getElementById("products");
+
+    area.innerHTML = "";
+
+    products.forEach(p => {
+      const item = document.createElement("p");
+      const call = document.createElement("a");
+
+      item.textContent = p.name + " Rs. " + p.price;
+
+      call.href = "tel:" + p.seller_phone;
+      call.textContent = "📞 Call the shopkeeper";
+      call.style.display = "block";
+      call.style.padding = "10px";
+      call.style.background = "green";
+      call.style.color = "white";
+      call.style.textAlign = "center";
+      call.style.textDecoration = "none";
+      call.style.marginTop = "10px";
+
+      if (p.seller_phone) {
+        item.appendChild(call);
+      }
+
+      area.appendChild(item);
+    });
+
+  } catch (error) {
+    document.getElementById("products").textContent = "Saman load bhayena.";
+  }
+}
+
+async function changeStatus(orderId, status, message) {
+  try {
+    const response = await fetch("/api/orders/" + orderId + "/status", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ status: status })
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      message.textContent = result.message || "Status update failed.";
+      return;
+    }
+
+    message.textContent = "Order status updated!";
+    await loadOrders();
+
+  } catch (error) {
+    message.textContent = "Status update failed.";
+  }
+}
+
+async function loadOrders() {
+  const area = document.getElementById("orders");
+  area.textContent = "Loading orders...";
+
+  try {
+    const response = await fetch("/api/orders");
+    if (!response.ok) throw new Error("Orders load failed");
+
+    const orders = await response.json();
+    area.innerHTML = "";
+
+    if (orders.length === 0) {
+      area.textContent = "Ahile samma order aayeko chaina.";
+      return;
+    }
+
+    orders.forEach(order => {
+      const item = document.createElement("div");
+      item.className = "item";
+
+      const details = document.createElement("p");
+      details.textContent = "Order No: " + order.id +
+        " | Name: " + order.customer_name +
+        " | Mobile: " + order.phone +
+        " | Total: Rs. " + order.total;
+
+      const products = document.createElement("p");
+      products.textContent = "Items: " + order.items;
+
+      const status = document.createElement("p");
+      status.className = "status";
+      status.textContent = "Current Status: " + (order.status || "Pending");
+
+      const select = document.createElement("select");
+
+      ["Pending", "Confirmed", "Delivered"].forEach(value => {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = value;
+        if ((order.status || "Pending") === value) option.selected = true;
+        select.appendChild(option);
+      });
+
+      const button = document.createElement("button");
+      button.textContent = "Update Order Status";
+
+      const message = document.createElement("p");
+
+      button.addEventListener("click", () => {
+        changeStatus(order.id, select.value, message);
+      });
+
+      item.append(details, products, status, select, button, message);
+      area.appendChild(item);
+    });
+
+  } catch (error) {
+    area.textContent = "Orders load bhayena: " + error.message;
+  }
+}
+loadProducts();
+</script>
+</body>
+</html>

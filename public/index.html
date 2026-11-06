@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="ne">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hamro Click & Collect</title>
+<style>
+body{font-family:Arial;background:#f2f2f2;margin:0;padding:15px}
+header{background:green;color:white;text-align:center;padding:18px}
+.box{background:white;padding:15px;margin:15px 0;border-radius:10px}
+input,button{width:100%;padding:12px;margin:6px 0;box-sizing:border-box}
+button{background:green;color:white;border:0;border-radius:5px;font-size:16px}
+.product{background:white;padding:12px;margin:12px 0;border-radius:8px}
+.product img{max-width:100%;height:150px;object-fit:contain}
+#trackResult{background:#e8f5e9;padding:12px;margin-top:10px;border-radius:8px}
+.status-pending{
+  color:#b77900;
+  background:#fff3cd;
+  padding:10px;
+  border-radius:6px;
+  font-weight:bold;
+}
+.status-confirmed{
+  color:#08752c;
+  background:#d4edda;
+  padding:10px;
+  border-radius:6px;
+  font-weight:bold;
+}
+.status-delivered{
+  color:#075985;
+  background:#dbeafe;
+  padding:10px;
+  border-radius:6px;
+  font-weight:bold;
+}
+</style>
+</head>
+<body>
+
+<header>
+<h2>Nepal Online Shopping Center</h2>
+<p>अनलाइन किनमेल गर्नुहोस्</p>
+</header>
+
+<div class="box">
+<h3>हाम्रा सामानहरू</h3>
+<div id="products">सामान लोड हुँदैछ...</div>
+</div>
+
+<div class="box">
+<h3>मेरो कार्ट 🛒</h3>
+<div id="cart">कार्ट खाली छ।</div>
+<h3>अर्डर गर्ने विवरण</h3>
+<input id="orderName" placeholder="तपाईंको पूरा नाम">
+<input id="orderPhone" placeholder="मोबाइल नम्बर">
+<button onclick="placeOrder()">Order Now</button>
+<p id="orderMessage"></p>
+<h3 id="total">जम्मा: Rs. 0</h3>
+<button onclick="clearCart()">कार्ट खाली गर्नुहोस्</button>
+</div>
+
+<div class="box">
+<h3>📦 मेरो अर्डरको अवस्था हेर्नुहोस्</h3>
+<input id="trackOrderId" type="number" placeholder="Order Number राख्नुहोस्">
+<input id="trackPhone" placeholder="मोबाइल नम्बर राख्नुहोस्">
+<button onclick="trackOrder()">Track My Order</button>
+<div id="trackResult"></div>
+</div>
+
+<div class="box">
+<h3>ग्राहक दर्ता</h3>
+<input id="regName" placeholder="तपाईंको नाम">
+<input id="regPhone" placeholder="मोबाइल नम्बर">
+<input id="regEmail" placeholder="इमेल">
+<input id="regPassword" type="password" placeholder="पासवर्ड">
+<button onclick="register()">दर्ता गर्नुहोस्</button>
+<p id="regMessage"></p>
+</div>
+
+<div class="box">
+<h3>ग्राहक लगइन</h3>
+<input id="loginPhone" placeholder="मोबाइल वा इमेल">
+<input id="loginPassword" type="password" placeholder="पासवर्ड">
+<button onclick="login()">लगइन गर्नुहोस्</button>
+<p id="loginMessage"></p>
+</div>
+
+<script>
+let cart = [];
+
+async function loadProducts() {
+  try {
+    const response = await fetch("/api/products");
+    const products = await response.json();
+    const area = document.getElementById("products");
+
+    area.innerHTML = "";
+
+    if (products.length === 0) {
+      area.textContent = "No products added yet.";
+      return;
+    }
+
+    products.forEach(function(p) {
+      const item = document.createElement("div");
+      item.className = "product";
+
+      if (p.photo) {
+        const img = document.createElement("img");
+        img.src = p.photo;
+        img.alt = p.name;
+        item.appendChild(img);
+      }
+
+      const name = document.createElement("h3");
+      name.textContent = p.name;
+      item.appendChild(name);
+
+      const price = document.createElement("p");
+      price.textContent = "मूल्य: Rs. " + p.price;
+      item.appendChild(price);
+
+      const button = document.createElement("button");
+      button.textContent = "Add to Cart";
+      button.onclick = function() {
+        addToCart(p);
+      };
+
+      item.appendChild(button);
+      area.appendChild(item);
+    });
+
+  } catch (error) {
+    document.getElementById("products").textContent = "Saman load bhayena.";
+  }
+}
+
+function addToCart(product) {
+  cart.push(product);
+  showCart();
+}
+
+function showCart(){
+  const area = document.getElementById("cart");
+  area.innerHTML = "";
+  let total = 0;
+
+  if(cart.length === 0){
+    area.textContent = "कार्ट खाली छ।";
+  }
+
+  cart.forEach(function(p){
+    const item = document.createElement("p");
+    item.textContent = p.name + " - Rs. " + p.price;
+    area.appendChild(item);
+    total += Number(p.price);
+  });
+
+  document.getElementById("total").textContent = "जम्मा: Rs. " + total;
+}
+
+function clearCart(){
+  cart = [];
+  showCart();
+}
+
+async function register(){
+  const data = {
+    name: document.getElementById("regName").value,
+    phone: document.getElementById("regPhone").value,
+    email: document.getElementById("regEmail").value,
+    password: document.getElementById("regPassword").value
+  };
+
+  try{
+    const response = await fetch("/api/register",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify(data)
+    });
+    const result = await response.json();
+    document.getElementById("regMessage").textContent =
+      result.message || (response.ok ? "दर्ता सफल भयो।" : "दर्ता भएन।");
+  }catch(error){
+    document.getElementById("regMessage").textContent = "Server सँग सम्पर्क भएन।";
+  }
+}
+
+async function login(){
+  const data = {
+    phone: document.getElementById("loginPhone").value,
+    password: document.getElementById("loginPassword").value
+  };
+
+  try{
+    const response = await fetch("/api/login",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify(data)
+    });
+    const result = await response.json();
+    document.getElementById("loginMessage").textContent =
+      result.message || (response.ok ? "लगइन सफल भयो।" : "लगइन भएन।");
+  }catch(error){
+    document.getElementById("loginMessage").textContent = "Server सँग सम्पर्क भएन।";
+  }
+}
+
+async function placeOrder(){
+  const customer_name = document.getElementById("orderName").value.trim();
+  const phone = document.getElementById("orderPhone").value.trim();
+  const total = cart.reduce((sum, p) => sum + Number(p.price), 0);
+  const message = document.getElementById("orderMessage");
+
+  if (!customer_name || !phone || cart.length === 0) {
+    message.textContent = "नाम, मोबाइल नम्बर र कार्ट जाँच गर्नुहोस्।";
+    return;
+  }
+
+  try{
+    const response = await fetch("/api/orders",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        customer_name,
+        phone,
+        items:cart,
+        total
+      })
+    });
+
+    const result = await response.json();
+
+    if(response.ok){
+      message.textContent = "अर्डर सफल भयो! तपाईंको Order Number: " + result.orderId;
+
+      document.getElementById("trackOrderId").value = result.orderId;
+      document.getElementById("trackPhone").value = phone;
+
+      cart = [];
+      showCart();
+    }else{
+      message.textContent = result.message || "अर्डर पठाउन सकिएन।";
+    }
+  }catch(error){
+    message.textContent = "अर्डर पठाउन सकिएन। Server जाँच गर्नुहोस्।";
+  }
+}
+
+async function trackOrder() {
+  const orderId = document.getElementById("trackOrderId").value.trim();
+  const phone = document.getElementById("trackPhone").value.trim();
+  const area = document.getElementById("trackResult");
+
+  if (!orderId || !phone) {
+    area.textContent = "Enter Order Number and Mobile Number.";
+    return;
+  }
+
+  area.textContent = "Searching for orders...";
+
+  try {
+    const response = await fetch(
+      "/api/orders/track?orderId=" + encodeURIComponent(orderId) +
+      "&phone=" + encodeURIComponent(phone)
+    );
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      area.textContent = result.message || "Order not found.";
+      return;
+    }
+
+    area.innerHTML = "";
+
+    const heading = document.createElement("h3");
+    heading.textContent = "Order Found!";
+    area.appendChild(heading);
+
+    const details = [
+      "Order Number: " + result.id,
+      "Customer Name: " + result.customer_name,
+      "Mobile: " + result.phone,
+      "Deposit Amount: Rs. " + result.total,
+      "Order Status: " + result.status
+    ];
+
+    details.forEach(function(detail) {
+      const p = document.createElement("p");
+      p.textContent = detail;
+
+      if (detail.includes("Pending")) {
+        p.className = "status-pending";
+      } else if (detail.includes("Confirmed")) {
+        p.className = "status-confirmed";
+      } else if (detail.includes("Delivered")) {
+        p.className = "status-delivered";
+      }
+
+      area.appendChild(p);
+    });
+
+  } catch (error) {
+    area.textContent = "Unable to connect to server.";
+  }
+}
+
+loadProducts();
+</script>
+
+</body>
+</html>
